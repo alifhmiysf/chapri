@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "806721437199",
+    "project_id": "chapri-chat-app-bb72a",
+    "storage_bucket": "chapri-chat-app-bb72a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:806721437199:android:726f4a097bc19c1ed1ad7a",
+        "android_client_info": {
+          "package_name": "com.example.chapri"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBbaoaNOzL4G76WQoxZQL2nXjXvvbPakSs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
