@@ -1,8 +1,8 @@
 import 'dart:async';
-import '../welcome/welcome_page.dart';
 import 'package:flutter/material.dart';
-
-
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:chapri/features/main_page.dart';      // arahkan ke MainPage
+import 'package:chapri/features/welcome/welcome_page.dart';
 
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
@@ -16,17 +16,22 @@ class _SplashPageState extends State<SplashPage> {
   void initState() {
     super.initState();
 
-    Timer(
-      const Duration(seconds: 2),
-      () {
+    Timer(const Duration(seconds: 2), () {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        // User sudah login → langsung ke MainPage (dengan bottom nav)
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(
-            builder: (_) => const WelcomePage(),
-          ),
+          MaterialPageRoute(builder: (_) => const MainPage()),
         );
-      },
-    );
+      } else {
+        // Belum login → ke WelcomePage
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const WelcomePage()),
+        );
+      }
+    });
   }
 
   @override
@@ -36,12 +41,8 @@ class _SplashPageState extends State<SplashPage> {
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.favorite,
-              color: Colors.white,
-              size: 80,
-            ),
+          children: const [
+            Icon(Icons.favorite, color: Colors.white, size: 80),
             SizedBox(height: 20),
             Text(
               "CHAPRI",
@@ -55,15 +56,10 @@ class _SplashPageState extends State<SplashPage> {
             SizedBox(height: 10),
             Text(
               "Private Messenger",
-              style: TextStyle(
-                color: Colors.white70,
-                fontSize: 16,
-              ),
+              style: TextStyle(color: Colors.white70, fontSize: 16),
             ),
             SizedBox(height: 40),
-            CircularProgressIndicator(
-              color: Colors.white,
-            ),
+            CircularProgressIndicator(color: Colors.white),
           ],
         ),
       ),

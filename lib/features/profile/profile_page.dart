@@ -1,10 +1,10 @@
-import 'package:chapri/features/home/home_page.dart';
-import 'package:chapri/features/welcome/welcome_page.dart';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'edit_profile_page.dart';
+import 'package:chapri/features/chat/chat_page.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -15,19 +15,22 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+  DateTime? lastBackPressTime;
 
-  // Fungsi untuk logout dari Firebase Auth
-// Fungsi untuk logout dari Firebase Auth secara total
+  // Fungsi logout
   void _logout() async {
     try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null) {
+        await FirebaseFirestore.instance.collection('users').doc(uid).update({
+          'isOnline': false,
+          'lastSeen': FieldValue.serverTimestamp(),
+        });
+      }
       await FirebaseAuth.instance.signOut();
-      
       if (mounted) {
-        // Mengarahkan ke halaman login dan menghapus seluruh stack halaman di belakangnya
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(
-            builder: (context) => const WelcomePage(), // <-- Ganti LoginPage() sesuai dengan nama class halaman login-mu
-          ),
+          MaterialPageRoute(builder: (context) => const ChatPage()),
           (route) => false,
         );
       }
@@ -41,147 +44,113 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
+  // Logika back button
+  Future<bool> _onWillPop() async {
+    final now = DateTime.now();
+    if (lastBackPressTime == null ||
+        now.difference(lastBackPressTime!) > const Duration(seconds: 2)) {
+      lastBackPressTime = now;
+      // Back pertama → kembali ke ChatPage
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Tekan sekali lagi untuk keluar"),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return false;
+    }
+    // Back kedua → keluar aplikasi
+    if (Platform.isAndroid) {
+      SystemNavigator.pop();
+    } else {
+      exit(0);
+    }
+    return true;
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("Profile"),
-      ),
-      body: currentUserId == null
-          ? const Center(child: Text("User tidak terautentikasi"))
-          : StreamBuilder<DocumentSnapshot>(
-              // Mengambil stream data user secara real-time dari Firestore
-              stream: FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(currentUserId)
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+    return WillPopScope(
+      onWillPop: _onWillPop,
+      child: Scaffold(
+        appBar: AppBar(title: const Text("Profile")),
+        body: currentUserId == null
+            ? const Center(child: Text("User tidak terautentikasi"))
+            : StreamBuilder<DocumentSnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(currentUserId)
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (!snapshot.hasData || !snapshot.data!.exists) {
+                    return const Center(child: Text("Gagal memuat profil"));
+                  }
 
-                if (!snapshot.hasData || !snapshot.data!.exists) {
-                  return const Center(child: Text("Gagal memuat profil"));
-                }
+                  final userData =
+                      snapshot.data!.data() as Map<String, dynamic>;
+                  String name = userData['name'] ?? 'No Name';
+                  String username = userData['username'] ?? 'username';
+                  bool isOnline = userData['isOnline'] ?? false;
+                  Timestamp? lastSeen = userData['lastSeen'] as Timestamp?;
 
-                // Membaca data dari dokumen Firestore
-                final userData = snapshot.data!.data() as Map<String, dynamic>;
-                String name = userData['name'] ?? 'No Name';
-                String username = userData['username'] ?? 'username';
+                  String statusText = isOnline
+                      ? "Online"
+                      : lastSeen != null
+                          ? "Terakhir dilihat ${lastSeen.toDate().hour}:${lastSeen.toDate().minute.toString().padLeft(2, '0')}"
+                          : "Offline";
 
-                return SingleChildScrollView(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 20),
-                      const CircleAvatar(
-                        radius: 55,
-                        child: Icon(
-                          Icons.person,
-                          size: 60,
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 20),
+                        const CircleAvatar(
+                          radius: 55,
+                          child: Icon(Icons.person, size: 60),
                         ),
-                      ),
-                      const SizedBox(height: 20),
-                      
-                      // Nama Dinamis
-                      Text(
-                        name,
-                        style: const TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 5),
-                      
-                      // Username Dinamis
-                      Text(
-                        "@$username",
-                        style: const TextStyle(
-                          color: Colors.grey,
-                          fontSize: 16,
-                        ),
-                      ),
-                      const SizedBox(height: 25),
-
-                      // Box Chapri ID (Menggunakan UID asli user dari Firebase Auth)
-                      Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.shade50,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Column(
-                          children: [
-                            const Text(
-                              "Your Chapri ID",
-                              style: TextStyle(
+                        const SizedBox(height: 20),
+                        Text(name,
+                            style: const TextStyle(
+                                fontSize: 28, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 5),
+                        Text("@$username",
+                            style: const TextStyle(
+                                color: Colors.grey, fontSize: 16)),
+                        const SizedBox(height: 10),
+                        Text(statusText,
+                            style: TextStyle(
+                                color: isOnline ? Colors.green : Colors.grey,
                                 fontSize: 14,
-                                color: Colors.grey,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              currentUserId!,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                fontSize: 16, // Ukuran disesuaikan karena UID Firebase cukup panjang
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 15),
-                            OutlinedButton.icon(
-                              onPressed: () {
-                                // Fungsi menyalin ID asli ke clipboard HP
-                                Clipboard.setData(ClipboardData(text: currentUserId!));
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text("ID copied to clipboard"),
-                                  ),
-                                );
-                              },
-                              icon: const Icon(Icons.copy),
-                              label: const Text("Copy ID"),
-                            )
-                          ],
+                                fontStyle: FontStyle.italic)),
+                        const SizedBox(height: 25),
+                        profileMenu(
+                          icon: Icons.edit,
+                          title: "Edit Profile",
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const EditProfilePage()),
+                            );
+                          },
                         ),
-                      ),
-                      const SizedBox(height: 30),
-
-                      // Menu Edit Profile
-                      profileMenu(
-                        icon: Icons.edit,
-                        title: "Edit Profile",
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const EditProfilePage(),
-                            ),
-                          );
-                        },
-                      ),
-                      
-                      profileMenu(
-                        icon: Icons.notifications,
-                        title: "Notifications",
-                      ),
-                      
-                      profileMenu(
-                        icon: Icons.lock,
-                        title: "Privacy",
-                      ),
-                      
-                      // Menu Logout yang sudah berfungsi
-                      profileMenu(
-                        icon: Icons.logout,
-                        title: "Logout",
-                        onTap: _logout,
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
+                        profileMenu(icon: Icons.notifications, title: "Notifications"),
+                        profileMenu(icon: Icons.lock, title: "Privacy"),
+                        profileMenu(
+                          icon: Icons.logout,
+                          title: "Logout",
+                          onTap: _logout,
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+      ),
     );
   }
 
@@ -195,10 +164,7 @@ class _ProfilePageState extends State<ProfilePage> {
       child: ListTile(
         leading: Icon(icon),
         title: Text(title),
-        trailing: const Icon(
-          Icons.arrow_forward_ios,
-          size: 16,
-        ),
+        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
         onTap: onTap,
       ),
     );

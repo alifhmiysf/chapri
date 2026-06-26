@@ -1,37 +1,97 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'chat_room_page.dart';
+import 'package:chapri/features/profile/profile_page.dart';
 
-class ChatPage extends StatelessWidget {
+class MainPage extends StatefulWidget {
+  const MainPage({super.key});
+
+  @override
+  State<MainPage> createState() => _MainPageState();
+}
+
+class _MainPageState extends State<MainPage> {
+  int _selectedIndex = 0;
+  DateTime? lastBackPressTime;
+
+  final List<Widget> _pages = [
+    const ChatPage(),
+    const ProfilePage(),
+  ];
+
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+  }
+
+  Future<bool> _onWillPop() async {
+    final now = DateTime.now();
+    if (lastBackPressTime == null ||
+        now.difference(lastBackPressTime!) > const Duration(seconds: 2)) {
+      lastBackPressTime = now;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Tekan sekali lagi untuk keluar"),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return false;
+    }
+    if (Platform.isAndroid) {
+      SystemNavigator.pop();
+    } else {
+      exit(0);
+    }
+    return true;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return WillPopScope(
+      onWillPop: _onWillPop,
+      child: Scaffold(
+        body: _pages[_selectedIndex],
+        bottomNavigationBar: BottomNavigationBar(
+          currentIndex: _selectedIndex,
+          onTap: _onItemTapped,
+          items: const [
+            BottomNavigationBarItem(icon: Icon(Icons.chat), label: "Chat"),
+            BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class ChatPage extends StatefulWidget {
   const ChatPage({super.key});
 
+  @override
+  State<ChatPage> createState() => _ChatPageState();
+}
+
+class _ChatPageState extends State<ChatPage> {
   @override
   Widget build(BuildContext context) {
     final currentUserId = FirebaseAuth.instance.currentUser?.uid;
 
     return Scaffold(
       appBar: AppBar(
-        automaticallyImplyLeading: false, 
+        automaticallyImplyLeading: false,
         title: const Text(
           "Chapri",
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(fontWeight: FontWeight.bold),
         ),
         actions: [
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(Icons.search),
-          ),
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(Icons.more_vert),
-          ),
+          IconButton(onPressed: () {}, icon: const Icon(Icons.search)),
+          IconButton(onPressed: () {}, icon: const Icon(Icons.more_vert)),
         ],
       ),
-      
-      // Murni mengambil data room yang sudah terbuat (pernah chat)
       body: currentUserId == null
           ? const Center(child: Text("User tidak terautentikasi"))
           : StreamBuilder<QuerySnapshot>(
@@ -43,22 +103,23 @@ class ChatPage extends StatelessWidget {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
-
                 if (snapshot.hasError) {
                   return const Center(child: Text("Gagal memuat daftar chat"));
                 }
-
-                // Jika benar-benar belum pernah chat dengan siapa pun
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.chat_bubble_outline_rounded, size: 64, color: Colors.grey.shade400),
+                        Icon(Icons.chat_bubble_outline_rounded,
+                            size: 64, color: Colors.grey.shade400),
                         const SizedBox(height: 16),
                         Text(
                           "Belum ada obrolan aktif",
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.grey.shade700),
+                          style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey.shade700),
                         ),
                         const SizedBox(height: 4),
                         const Text(
@@ -75,10 +136,11 @@ class ChatPage extends StatelessWidget {
                 return ListView.builder(
                   itemCount: chatRooms.length,
                   itemBuilder: (context, index) {
-                    final roomData = chatRooms[index].data() as Map<String, dynamic>;
-                    final List<dynamic> participants = roomData['participants'] ?? [];
-                    
-                    // Mencari ID lawan bicara
+                    final roomData =
+                        chatRooms[index].data() as Map<String, dynamic>;
+                    final List<dynamic> participants =
+                        roomData['participants'] ?? [];
+
                     final String receiverId = participants.firstWhere(
                       (id) => id != currentUserId,
                       orElse: () => '',
@@ -86,17 +148,22 @@ class ChatPage extends StatelessWidget {
 
                     if (receiverId.isEmpty) return const SizedBox.shrink();
 
-                    // Mengambil data profile dari koleksi users secara real-time / future
                     return FutureBuilder<DocumentSnapshot>(
-                      future: FirebaseFirestore.instance.collection('users').doc(receiverId).get(),
+                      future: FirebaseFirestore.instance
+                          .collection('users')
+                          .doc(receiverId)
+                          .get(),
                       builder: (context, userSnapshot) {
-                        if (!userSnapshot.hasData || !userSnapshot.data!.exists) {
+                        if (!userSnapshot.hasData ||
+                            !userSnapshot.data!.exists) {
                           return const SizedBox.shrink();
                         }
 
-                        final userData = userSnapshot.data!.data() as Map<String, dynamic>;
+                        final userData =
+                            userSnapshot.data!.data() as Map<String, dynamic>;
                         final String name = userData['name'] ?? 'No Name';
-                        final String lastMessage = roomData['lastMessage'] ?? 'Kirim pesan...';
+                        final String lastMessage =
+                            roomData['lastMessage'] ?? 'Kirim pesan...';
 
                         return ListTile(
                           leading: CircleAvatar(
