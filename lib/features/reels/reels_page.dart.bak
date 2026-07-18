@@ -1,0 +1,194 @@
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:youtube_player_flutter/youtube_player_flutter.dart';
+
+class ReelsPage extends StatefulWidget {
+  const ReelsPage({super.key});
+
+  @override
+  State<ReelsPage> createState() => _ReelsPageState();
+}
+
+class _ReelsPageState extends State<ReelsPage> {
+  final String _apiKey = 'AIzaSyCPNyBr2PdvLiK396iXihqntyuazxprlcg';
+  List<Map<String, dynamic>> _reelsVideos = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchRandomShorts();
+  }
+
+  Future<void> _fetchRandomShorts() async {
+    final String url = 
+        'https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=10&q=%23shorts&type=video&videoDuration=short&key=$_apiKey';
+
+    try {
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List items = data['items'] ?? [];
+        
+        List<Map<String, dynamic>> loadedVideos = [];
+        for (var item in items) {
+          if (item['id']['videoId'] != null) {
+            loadedVideos.add({
+              'id': item['id']['videoId'],
+              'title': item['snippet']['title'] ?? '',
+              'channel': item['snippet']['channelTitle'] ?? '',
+            });
+          }
+        }
+
+        setState(() {
+          _reelsVideos = loadedVideos;
+          _isLoading = false;
+        });
+      } else {
+        throw Exception('Gagal merespon data dari YouTube Server');
+      }
+    } catch (e) {
+      debugPrint("Error API YouTube: $e");
+      setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: Colors.red))
+          : _reelsVideos.isEmpty
+              ? const Center(
+                  child: Text(
+                    "Gagal memuat Reels.\nPastikan YouTube Data API v3 aktif.",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white, fontSize: 14),
+                  ),
+                )
+              : PageView.builder(
+                  scrollDirection: Axis.vertical, // Geser vertikal ala Reels
+                  itemCount: _reelsVideos.length,
+                  itemBuilder: (context, index) {
+                    final video = _reelsVideos[index];
+                    return ReelItem(
+                      key: ValueKey(video['id']), // Mencegah video duplikat / salah re-render
+                      videoId: video['id'],
+                      title: video['title'],
+                      channel: video['channel'],
+                    );
+                  },
+                ),
+    );
+  }
+}
+
+class ReelItem extends StatefulWidget {
+  final String videoId;
+  final String title;
+  final String channel;
+
+  const ReelItem({
+    super.key,
+    required this.videoId,
+    required this.title,
+    required this.channel,
+  });
+
+  @override
+  State<ReelItem> createState() => _ReelItemState();
+}
+
+class _ReelItemState extends State<ReelItem> {
+  late YoutubePlayerController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    // Di versi baru, inisialisasi menggunakan dariVideoId dan params modern
+    _controller = YoutubePlayerController.fromVideoId(
+      videoId: widget.videoId,
+      autoPlay: true,
+      params: const YoutubePlayerParams(
+        showControls: false,
+        showFullscreenButton: false,
+        mute: false,
+        loop: true,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        // PLAYER: Dibungkus IgnorePointer agar gesture scroll vertikal langsung aktif
+        Center(
+          child: IgnorePointer(
+            ignoring: true, // Hanya menambahkan ini agar video bisa di-scroll atas bawah
+            child: YoutubePlayerScaffold(
+              controller: _controller,
+              aspectRatio: 9 / 16, // Mengunci aspek rasio vertikal ala Shorts/Reels
+              builder: (context, player) {
+                return player;
+              },
+            ),
+          ),
+        ),
+
+        // TOMBOL INTERAKSI (KANAN)
+        Positioned(
+          right: 15,
+          bottom: 120,
+          child: Column(
+            children: [
+              _buildActionButton(Icons.favorite, "Random", Colors.white),
+              const SizedBox(height: 20),
+              _buildActionButton(Icons.comment, "Yuk", Colors.white),
+              const SizedBox(height: 20),
+              _buildActionButton(Icons.share, "Bagi", Colors.white),
+            ],
+          ),
+        ),
+
+        // CAPTION DAN JUDUL (BAWAH)
+        Positioned(
+          left: 15,
+          bottom: 40,
+          right: 80,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "@${widget.channel}",
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                widget.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Colors.white70, fontSize: 13),
+              ),
+            ],
+          ),
+        )
+      ],
+    );
+  }
+
+  Widget _buildActionButton(IconData icon, String label, Color color) {
+    return Column(
+      children: [
+        Icon(icon, color: color, size: 32),
+        const SizedBox(height: 4),
+        Text(label, style: const TextStyle(color: Colors.white, fontSize: 11)),
+      ],
+    );
+  }
+}

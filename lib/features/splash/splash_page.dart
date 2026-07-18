@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:chapri/features/main_page.dart';      // arahkan ke MainPage
+import 'package:chapri/features/main_page.dart';
 import 'package:chapri/features/welcome/welcome_page.dart';
 
 class SplashPage extends StatefulWidget {
@@ -11,58 +11,101 @@ class SplashPage extends StatefulWidget {
   State<SplashPage> createState() => _SplashPageState();
 }
 
-class _SplashPageState extends State<SplashPage> {
+class _SplashPageState extends State<SplashPage>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _fadeAnimation;
+
   @override
   void initState() {
     super.initState();
 
+    // Animasi fade-in
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
+    _fadeAnimation = CurvedAnimation(parent: _controller, curve: Curves.easeIn);
+    _controller.forward();
+
+    // Timer navigasi
     Timer(const Duration(seconds: 2), () {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        // User sudah login → langsung ke MainPage (dengan bottom nav)
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => const MainPage()),
+          MaterialPageRoute(builder: (_) => MainPage()),
         );
       } else {
-        // Belum login → ke WelcomePage
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => const WelcomePage()),
+          MaterialPageRoute(builder: (_) => WelcomePage()),
         );
       }
     });
   }
 
   @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.blue,
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: const [
-            Icon(Icons.favorite, color: Colors.white, size: 80),
-            SizedBox(height: 20),
-            Text(
-              "CHAPRI",
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 34,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 3,
+      body: FadeTransition(
+        opacity: _fadeAnimation,
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Logo konsisten dengan Login/Register
+              Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(25),
+                  boxShadow: const [
+                    BoxShadow(
+                      blurRadius: 10,
+                      color: Colors.black26,
+                      offset: Offset(0, 4),
+                    )
+                  ],
+                ),
+                child: const Icon(Icons.favorite, size: 60, color: Colors.blue),
               ),
-            ),
-            SizedBox(height: 10),
-            Text(
-              "Private Messenger",
-              style: TextStyle(color: Colors.white70, fontSize: 16),
-            ),
-            SizedBox(height: 40),
-            CircularProgressIndicator(color: Colors.white),
-          ],
+
+              const SizedBox(height: 20),
+
+              const Text(
+                "CHAPRI",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 34,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 3,
+                ),
+              ),
+
+              const SizedBox(height: 10),
+
+              const Text(
+                "Private Messenger",
+                style: TextStyle(color: Colors.white70, fontSize: 16),
+              ),
+
+              const SizedBox(height: 40),
+
+              const CircularProgressIndicator(color: Colors.white),
+            ],
+          ),
         ),
       ),
     );
   }
 }
+

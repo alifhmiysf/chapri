@@ -11,16 +11,12 @@ class AddContactPage extends StatefulWidget {
 
 class _AddContactPageState extends State<AddContactPage> {
   final idController = TextEditingController();
-  
-  // Variabel untuk menyimpan data user yang ditemukan dari Firebase
   Map<String, dynamic>? userData;
   String? userId;
   bool isLoading = false;
 
-  // Fungsi untuk mencari user langsung ke Cloud Firestore
-  void searchUser() async {
-    String searchUsername = idController.text.trim().toLowerCase();
-
+  Future<void> searchUser() async {
+    final String searchUsername = idController.text.trim().toLowerCase();
     if (searchUsername.isEmpty) return;
 
     setState(() {
@@ -30,40 +26,105 @@ class _AddContactPageState extends State<AddContactPage> {
     });
 
     try {
-      // Mencari di koleksi 'users' yang field 'username'-nya sama dengan input
       final querySnapshot = await FirebaseFirestore.instance
           .collection('users')
           .where('username', isEqualTo: searchUsername)
           .get();
 
+      // Pastikan widget masih mounted sebelum menggunakan context atau setState
+      if (!mounted) return;
+
       if (querySnapshot.docs.isNotEmpty) {
-        // Jika user ditemukan
+        final doc = querySnapshot.docs.first;
+        final foundData = doc.data();
+        final foundId = doc.id;
+
         setState(() {
-          userData = querySnapshot.docs.first.data();
-          userId = querySnapshot.docs.first.id; // Ini mengambil UID dokumen user
+          userData = foundData;
+          userId = foundId;
           isLoading = false;
         });
+
+        // Tampilkan modal hasil pencarian — gunakan dialogContext di builder
+        showDialog(
+          context: context,
+          builder: (dialogContext) => Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircleAvatar(
+                    radius: 35,
+                    backgroundColor: Colors.blue.shade100,
+                    child: const Icon(Icons.person, size: 40, color: Colors.blue),
+                  ),
+                  const SizedBox(height: 15),
+                  Text(
+                    userData!['name'] ?? "No Name",
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    "@${userData!['username'] ?? "username"}",
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        // Gunakan dialogContext agar tidak bergantung pada outer context setelah async
+                        Navigator.of(dialogContext).pop(); // tutup modal
+                        Navigator.of(dialogContext).push(
+                          MaterialPageRoute(
+                            builder: (_) => ChatRoomPage(
+                              username: userData!['name'] ?? "No Name",
+                              receiverId: userId!,
+                            ),
+                          ),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                      ),
+                      child: const Text(
+                        "Start Chat →",
+                        style: TextStyle(fontSize: 16, color: Colors.white),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
       } else {
-        // Jika user tidak ditemukan
-        setState(() {
-          isLoading = false;
-        });
+        // Pastikan masih mounted sebelum setState / snackbar
+        if (!mounted) return;
+        setState(() => isLoading = false);
         showErrorSnackBar("User tidak ditemukan");
       }
     } catch (e) {
-      setState(() {
-        isLoading = false;
-      });
+      if (!mounted) return;
+      setState(() => isLoading = false);
       showErrorSnackBar("Terjadi kesalahan: $e");
     }
   }
 
   void showErrorSnackBar(String message) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-      ),
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
     );
   }
 
@@ -76,110 +137,99 @@ class _AddContactPageState extends State<AddContactPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Add Contact"),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            const Text(
-              "Search using Chapri Username",
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 20),
-            
-            TextField(
-              controller: idController,
-              // Mengubah input ke huruf kecil secara otomatis agar cocok dengan Firestore jika disimpan lowercase
-              textInputAction: TextInputAction.search,
-              onSubmitted: (_) => searchUser(),
-              decoration: InputDecoration(
-                hintText: "Example: alifahmi",
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(15),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: searchUser,
-                child: isLoading 
-                    ? const SizedBox(
-                        width: 20, 
-                        height: 20, 
-                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
-                      )
-                    : const Text("Search"),
-              ),
-            ),
-            const SizedBox(height: 30),
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Spacer(),
 
-            // Tampilkan Card jika user berhasil ditemukan
-            if (userData != null && userId != null)
-              Card(
-                elevation: 5,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
+              // Ilustrasi kosong
+              Container(
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  shape: BoxShape.circle,
                 ),
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    children: [
-                      const CircleAvatar(
-                        radius: 35,
-                        child: Icon(
-                          Icons.person,
-                          size: 40,
-                        ),
-                      ),
-                      const SizedBox(height: 15),
-                      Text(
-                        userData!['name'] ?? "No Name",
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 5),
-                      Text(
-                        "@${userData!['username'] ?? "username"}",
-                        style: const TextStyle(
-                          color: Colors.grey,
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: () {
-                            // Berpindah ke halaman ChatRoomPage dengan data asli Firebase
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => ChatRoomPage(
-                                  username: userData!['name'] ?? "No Name",
-                                  receiverId: userId!, // UID dinamis hasil pencarian
-                                ),
-                              ),
-                            );
-                          },
-                          child: const Text("Start Chat →"),
-                        ),
-                      )
-                    ],
+                child: const Icon(Icons.person_search, size: 60, color: Colors.blue),
+              ),
+
+              const SizedBox(height: 25),
+
+              const Text(
+                "Find your friends",
+                style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+
+              const SizedBox(height: 10),
+
+              const Text(
+                "Search by Chapri username to start chatting",
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey, fontSize: 16),
+              ),
+
+              const SizedBox(height: 40),
+
+              TextField(
+                controller: idController,
+                textInputAction: TextInputAction.search,
+                onSubmitted: (_) => searchUser(),
+                decoration: InputDecoration(
+                  hintText: "Example: alifahmi",
+                  prefixIcon: const Icon(Icons.search),
+                  filled: true,
+                  fillColor: Colors.grey[100],
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(18),
+                    borderSide: BorderSide.none,
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(18),
+                    borderSide: const BorderSide(color: Colors.blue),
                   ),
                 ),
-              )
-          ],
+              ),
+
+              const SizedBox(height: 25),
+
+              SizedBox(
+                width: double.infinity,
+                height: 55,
+                child: ElevatedButton(
+                  onPressed: searchUser,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                  ),
+                  child: isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text(
+                          "Search",
+                          style: TextStyle(fontSize: 18, color: Colors.white),
+                        ),
+                ),
+              ),
+
+              const Spacer(),
+            ],
+          ),
         ),
       ),
     );
